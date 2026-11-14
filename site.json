@@ -1,0 +1,39 @@
+{
+  "name": "Amir",
+  "description": "Amir's personal site: what I'm reading, building and learning, with notes I keep editing.",
+  "headline": "Hi, I'm Amir. I learn in public: data, football, books and whatever I'm building.",
+  "intro": "This is my corner of the internet. Below is what I'm reading, building and practising right now. Every item links to a note that I keep editing as I learn.",
+  "now_updated": "2026-11-14",
+  "now": [
+    {"label": "Reading", "text": "Practical Statistics for Data Scientists"},
+    {"label": "Building", "text": "A Premier League match model (Dixon–Coles)"},
+    {"label": "Practising", "text": "Rapid chess and a daily French routine"},
+    {"label": "Learning", "text": "Statistics first, then pandas, then visualization"}
+  ],
+  "cards": [
+    {
+      "label": "Building",
+      "title": "Premier League match model",
+      "text": "Estimates match outcome probabilities from team attack and defence strengths with a Dixon–Coles model, then backtests it on past seasons.",
+      "tags": ["Python", "pandas", "xG"]
+    },
+    {
+      "label": "Practising",
+      "title": "Chess and French",
+      "text": "Rapid games on chess.com, with rating progress posted as carousels on Instagram. French has a short daily routine, with intermediate as the starting point."
+    },
+    {
+      "label": "Learning path",
+      "title": "Data science, in order",
+      "steps": ["Statistics", "pandas", "Visualization"],
+      "current": 1
+    }
+  ],
+  "tiles": [
+    {"name": "About", "desc": "Who I am and what I have worked on.", "href": "about.html"},
+    {"name": "Books", "desc": "What I read and the one thing I kept from each.", "href": "books.html"},
+    {"name": "Notes", "desc": "A garden of notes that grow over time.", "href": "notes.html"},
+    {"name": "Projects", "desc": "Things I have built, from football models to small tools.", "href": "projects.html"}
+  ],
+  "links": []
+}

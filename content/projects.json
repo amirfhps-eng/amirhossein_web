@@ -1,0 +1,8 @@
+[
+  {
+    "title": "Premier League match model",
+    "description": "Estimates match outcome probabilities from team attack and defence strengths with a Dixon–Coles model, then backtests it on past Premier League seasons.",
+    "tags": ["Python", "pandas", "xG"],
+    "url": ""
+  }
+]
