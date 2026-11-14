@@ -1,7 +1,10 @@
 ---
 title: Notes on Practical Statistics, chapter 3
 stage: budding
-tags: statistics, pandas, book notes
+tags:
+  - statistics
+  - pandas
+  - book notes
 date: 2026-11-14
 summary: A permutation test in pandas, and what a p-value does and does not say.
 ---

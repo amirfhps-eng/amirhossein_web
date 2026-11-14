@@ -3,6 +3,9 @@
   "description": "Amir's personal site: what I'm reading, building and learning, with notes I keep editing.",
   "headline": "Hi, I'm Amir. I learn in public: data, football, books and whatever I'm building.",
   "intro": "This is my corner of the internet. Below is what I'm reading, building and practising right now. Every item links to a note that I keep editing as I learn.",
+  "photo": "",
+  "photo_alt": "",
+  "tagline": "",
   "now_updated": "2026-11-14",
   "now": [
     {"label": "Reading", "text": "Practical Statistics for Data Scientists"},

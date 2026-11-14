@@ -6,6 +6,8 @@ This is a static personal site built by `build.py` (Python 3, `markdown` library
 - The generated site goes to `dist/`, which is git-ignored. Run `python build.py` after every change and fix any error before finishing.
 - Pages use relative links. Pages in `notes/` and `tags/` pass `root="../"` to `layout()`, so keep links relative to that root.
 - Notes are Markdown files with a small front matter block (`title`, `stage`, `tags`, `date`, `summary`). `[[note-slug]]` links between notes, and backlinks are built automatically.
+- Photos live in `media/`. A book's `cover` (in `content/books.json`) and the owner's `photo` (in `site.json`) are paths into it, and images inside notes are Markdown images such as `![alt](/media/name.jpg)`. `media_url()` in `build.py` resizes each photo into `dist/media/` and returns its URL, so always go through it instead of linking to `media/` directly. A missing photo must fall back gracefully, never crash the build.
+- `.pages.yml` configures Pages CMS, a browser editor that edits these same files. When you add or rename a field in `site.json` or `content/`, update `.pages.yml` too, because the CMS may drop fields it does not know about when it saves a file.
 - Keep the site working without any client-side framework. The only script is the small book filter on the Books page.
 - Do not put personal details (birth date, phone number, home address) on the site unless the owner asks for them.
 - The site owner is Amir. Keep the tone plain, direct and personal.

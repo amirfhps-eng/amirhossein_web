@@ -5,6 +5,7 @@
     "status": "reading",
     "takeaway": "Going chapter by chapter, with pandas versions of the examples.",
     "note": "practical-statistics-chapter-3",
+    "cover": "",
     "progress": {"current": 3, "total": 7, "label": "Statistical Experiments and Significance Testing"}
   }
 ]

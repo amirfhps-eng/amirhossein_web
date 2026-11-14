@@ -14,13 +14,21 @@ import re
 import shutil
 import zlib
 from pathlib import Path
+from urllib.parse import quote
 
 import markdown
+import yaml
+
+try:
+    from PIL import Image, ImageOps
+except ImportError:  # without Pillow, photos are copied as they are, without resizing
+    Image = None
 
 ROOT = Path(__file__).parent
 CONTENT = ROOT / "content"
 STATIC = ROOT / "static"
 DIST = ROOT / "dist"
+MEDIA = ROOT / "media"
 TODAY = datetime.date.today()
 
 esc = html.escape
@@ -37,7 +45,9 @@ FONTS = (
     "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600"
     "&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap"
 )
-WIKI = re.compile(r"\[\[([^\]|]+)(?:\|([^\]]+))?\]\]")
+# [[note-name]] or [[note-name|label]]; editors sometimes escape the brackets with backslashes
+WIKI = re.compile(r"\\?\[\\?\[([^\]\\|]+)(?:\|([^\]\\]+))?\\?\]\\?\]")
+FRONT = re.compile(r"\A---[ \t]*\r?\n(.*?)^---[ \t]*\r?\n?(.*)\Z", re.S | re.M)
 
 
 # ---------- Helpers ----------
@@ -69,6 +79,76 @@ def load_json(name, default):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+# ---------- Photos ----------
+# Photos live in the media/ folder. Each one is resized once into dist/media/
+# so that phone photos (often 4 MB or more) do not slow the site down.
+
+IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
+_variants = {}
+
+
+def media_url(ref, root, width):
+    """Return the URL of a resized copy of a photo from media/, or None if it is missing."""
+    if not ref:
+        return None
+    rel = str(ref).strip().lstrip("./").lstrip("/")
+    if rel.startswith("media/"):
+        rel = rel[len("media/"):]
+    src = (MEDIA / rel).resolve()
+    if MEDIA.resolve() not in src.parents or not src.is_file():
+        print(f"warning: photo not found, skipped: {ref}")
+        return None
+    key = (rel, width)
+    if key not in _variants:
+        ext = src.suffix.lower()
+        if Image is not None and ext in IMAGE_EXTS:
+            out_rel = f"media/_w{width}/{rel}"
+            out = DIST / out_rel
+            out.parent.mkdir(parents=True, exist_ok=True)
+            with Image.open(src) as opened:
+                im = ImageOps.exif_transpose(opened)
+                if im.width > width:
+                    im = im.resize((width, round(im.height * width / im.width)), Image.LANCZOS)
+                if ext in (".jpg", ".jpeg"):
+                    im.convert("RGB").save(out, "JPEG", quality=82, optimize=True, progressive=True)
+                elif ext == ".png":
+                    im.save(out, "PNG", optimize=True)
+                else:
+                    im.save(out, "WEBP", quality=82)
+        else:
+            out_rel = f"media/{rel}"
+            out = DIST / out_rel
+            out.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy(src, out)
+        _variants[key] = out_rel
+    return root + quote(_variants[key])
+
+
+def cover_html(book, index, root=""):
+    """A book cover: the photo if the book has one, otherwise a coloured block."""
+    color = esc(book.get("color") or BOOK_COLORS[index % len(BOOK_COLORS)], quote=True)
+    url = media_url(book.get("cover"), root, 360)
+    img = ""
+    if url:
+        alt = esc("Cover of " + book["title"], quote=True)
+        img = f'<img src="{esc(url, quote=True)}" alt="{alt}" loading="lazy" decoding="async">'
+    return f'<div class="cover" style="background:{color}">{img}</div>'
+
+
+IMG_SRC = re.compile(r'(<img\b[^>]*?\bsrc=")([^"]+)(")')
+
+
+def fix_images(html_text, root, width=1400):
+    """Point photos inside Markdown text at their resized copies."""
+    def repl(m):
+        src = m.group(2)
+        if re.match(r"^(?:[a-z][a-z0-9+.-]*:|//)", src, re.I):
+            return m.group(0)
+        url = media_url(src, root, width)
+        return f"{m.group(1)}{esc(url, quote=True)}{m.group(3)}" if url else m.group(0)
+    return IMG_SRC.sub(repl, html_text).replace("<img ", '<img loading="lazy" ')
+
+
 def render_markdown(text):
     md = markdown.Markdown(
         extensions=["fenced_code", "tables", "toc", "sane_lists"],
@@ -77,6 +157,21 @@ def render_markdown(text):
     out = md.convert(text)
     headings = [(t["id"], t["name"]) for t in md.toc_tokens if t["level"] == 2]
     return out, headings
+
+
+def split_front_matter(text, name=""):
+    """Split a Markdown file into its front matter (a dict) and its body."""
+    m = FRONT.match(text)
+    if not m:
+        return {}, text
+    try:
+        meta = yaml.safe_load(m.group(1)) or {}
+    except yaml.YAMLError as err:
+        print(f"warning: could not read the front matter of {name}: {err}")
+        meta = {}
+    if not isinstance(meta, dict):
+        meta = {}
+    return {str(k).lower(): v for k, v in meta.items()}, m.group(2)
 
 
 def stage_chip(stage):
@@ -88,23 +183,18 @@ def stage_chip(stage):
 def load_notes():
     notes = {}
     for path in sorted((CONTENT / "notes").glob("*.md")):
-        text = path.read_text(encoding="utf-8")
-        meta, body = {}, text
-        m = re.match(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", text, re.S)
-        if m:
-            for line in m.group(1).splitlines():
-                if ":" in line:
-                    key, value = line.split(":", 1)
-                    meta[key.strip().lower()] = value.strip()
-            body = m.group(2)
-        stage = meta.get("stage", "seedling").lower()
+        meta, body = split_front_matter(path.read_text(encoding="utf-8"), path.name)
+        stage = str(meta.get("stage") or "seedling").lower()
+        raw_tags = meta.get("tags") or []
+        if isinstance(raw_tags, str):
+            raw_tags = raw_tags.split(",")
         notes[path.stem] = {
             "slug": path.stem,
-            "title": meta.get("title") or path.stem.replace("-", " ").title(),
+            "title": str(meta.get("title") or path.stem.replace("-", " ").title()),
             "stage": stage if stage in STAGES else "seedling",
-            "tags": [t.strip() for t in meta.get("tags", "").split(",") if t.strip()],
-            "date": meta.get("date", ""),
-            "summary": meta.get("summary", ""),
+            "tags": [str(t).strip() for t in raw_tags if str(t).strip()],
+            "date": str(meta.get("date") or "")[:10],
+            "summary": str(meta.get("summary") or ""),
             "body": body,
             "links_to": set(),
             "backlinks": [],
@@ -198,24 +288,30 @@ def home_page(site, books, notes):
         for r in site.get("now", [])
     )
     updated = fmt_date(site.get("now_updated", TODAY.isoformat()))
+    who = ""
+    photo = media_url(site.get("photo"), "", 640)
+    if photo:
+        alt = esc(site.get("photo_alt") or f"Photo of {site['name']}", quote=True)
+        tagline = f'<span class="meta">{esc(site["tagline"])}</span>' if site.get("tagline") else ""
+        who = (f'<div class="who"><img class="avatar" src="{esc(photo, quote=True)}" alt="{alt}">'
+               f'<div><strong>{esc(site["name"])}</strong>{tagline}</div></div>')
     hero = f"""<section class="hero band"><div class="wrap hero-grid">
 <div class="hero-copy">
 <h1>{esc(site["headline"])}</h1>
 <p class="lede">{esc(site["intro"])}</p>
 <div class="btns"><a class="btn btn-primary" href="notes.html">Read the notes</a><a class="btn btn-ghost" href="books.html">See the bookshelf</a></div>
 </div>
-<aside class="card now"><div class="now-head"><span class="label label-strong">Now</span><span class="meta">Updated {updated}</span></div>{now_rows}</aside>
+<aside class="card now">{who}<div class="now-head"><span class="label label-strong">Now</span><span class="meta">Updated {updated}</span></div>{now_rows}</aside>
 </div></section>"""
 
     cards_top = ""
     reading = next((b for b in books if b.get("status") == "reading"), None)
     if reading:
         index = books.index(reading)
-        color = BOOK_COLORS[index % len(BOOK_COLORS)] if not reading.get("color") else reading["color"]
         progress = ""
         p = reading.get("progress")
-        if p:
-            total, cur = int(p["total"]), int(p["current"])
+        if p and p.get("total"):
+            total, cur = int(p["total"]), int(p.get("current") or 0)
             segs = "".join(
                 f'<span class="seg{" seg-done" if i < cur else " seg-now" if i == cur else ""}"></span>'
                 for i in range(1, total + 1)
@@ -227,7 +323,7 @@ def home_page(site, books, notes):
             link = f'<a class="textlink" href="notes/{esc(reading["note"])}.html">Read my notes →</a>'
         cards_top += f"""<div class="card">
 <span class="label">Currently reading</span>
-<div class="reading"><div class="cover" style="background:{esc(color)}"></div>
+<div class="reading">{cover_html(reading, index)}
 <div><h3>{esc(reading["title"])}</h3><span class="byline">{esc(reading.get("author", ""))}</span>
 <p style="margin-top:8px">{esc(reading.get("takeaway", ""))}</p></div></div>
 {progress}{link}</div>"""
@@ -304,7 +400,11 @@ def books_page(site, books):
     spines = ""
     for i, b in enumerate(books):
         color = b.get("color") or BOOK_COLORS[i % len(BOOK_COLORS)]
-        spines += f'<div class="spine" style="width:{widths[i % 10]}px;height:{heights[i % 10]}px;background:{esc(color)}"></div>'
+        cover = media_url(b.get("cover"), "", 360)
+        if cover:
+            spines += f'<img class="shelf-cover" src="{esc(cover, quote=True)}" alt="" loading="lazy" decoding="async">'
+        else:
+            spines += f'<div class="spine" style="width:{widths[i % 10]}px;height:{heights[i % 10]}px;background:{esc(color)}"></div>'
     for j in range(len(books), max(len(books), 10)):
         spines += f'<div class="slot" style="width:{widths[j % 10]}px;height:{heights[j % 10]}px"></div>'
 
@@ -313,14 +413,13 @@ def books_page(site, books):
         status = b.get("status", "want")
         if status not in BOOK_STATUS:
             status = "want"
-        color = b.get("color") or BOOK_COLORS[i % len(BOOK_COLORS)]
         title = esc(b["title"])
         if b.get("note"):
             title_html = f'<a class="btitle" href="notes/{esc(b["note"])}.html">{title}</a>'
         else:
             title_html = f'<span class="btitle">{title}</span>'
         take = f'<span class="btake">{esc(b["takeaway"])}</span>' if b.get("takeaway") else ""
-        rows += (f'<div class="brow" data-status="{status}"><div class="cover" style="background:{esc(color)}"></div>'
+        rows += (f'<div class="brow" data-status="{status}">{cover_html(b, i)}'
                  f'<div class="binfo">{title_html}<span class="byline">{esc(b.get("author", ""))}</span>{take}</div>'
                  f'<span class="status status-{status}">{BOOK_STATUS[status]}</span></div>')
 
@@ -376,6 +475,7 @@ def tag_page(site, tag, notes):
 
 def note_page(site, note, by_slug):
     content, headings = render_markdown(note["body"])
+    content = fix_images(content, "../")
     words = len(re.findall(r"\w+", note["body"]))
     minutes = max(1, round(words / 200))
     toc = ""
@@ -422,9 +522,16 @@ def projects_page(site, projects):
 def about_page(site):
     path = CONTENT / "about.md"
     text = path.read_text(encoding="utf-8") if path.exists() else ""
+    _, text = split_front_matter(text, "about.md")
     content, _ = render_markdown(text)
+    content = fix_images(content, "")
+    photo = media_url(site.get("photo"), "", 640)
+    img = ""
+    if photo:
+        alt = esc(site.get("photo_alt") or f"Photo of {site['name']}", quote=True)
+        img = f'<img class="about-photo" src="{esc(photo, quote=True)}" alt="{alt}">'
     body = f"""<section class="page-head band"><div class="wrap"><h1>About</h1></div></section>
-<section class="band"><div class="wrap"><div class="prose prose-narrow">{content}</div></div></section>"""
+<section class="band"><div class="wrap about-grid">{img}<div class="prose prose-narrow">{content}</div></div></section>"""
     return layout(site, "About", body, "", "about", "About " + site["name"])
 
 
@@ -438,8 +545,12 @@ def not_found(site):
 
 def main():
     site = load_json("site.json", {})
-    books = load_json("books.json", [])
-    projects = load_json("projects.json", [])
+    # Editors may save empty fields as "" or null; treat those as not set.
+    def clean(items):
+        return [{k: v for k, v in item.items() if v not in (None, "")} for item in items]
+
+    books = clean(load_json("books.json", []))
+    projects = clean(load_json("projects.json", []))
     notes = load_notes()
     by_slug = {n["slug"]: n for n in notes}
     tags = {}

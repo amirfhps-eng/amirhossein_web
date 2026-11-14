@@ -1,7 +1,8 @@
 ---
 title: How this garden works
 stage: evergreen
-tags: meta
+tags:
+  - meta
 date: 2026-11-14
 summary: What the growth stages mean and how notes link to each other.
 ---

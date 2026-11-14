@@ -1,0 +1,237 @@
+# Pages CMS configuration (https://pagescms.org)
+# Sign in with GitHub at pagescms.org, open this repository, and edit the site from your browser.
+# Every save is a commit, and GitHub rebuilds the site automatically.
+
+media:
+  input: media
+  output: /media
+  categories: [image]
+  rename: safe
+
+content:
+  - name: site
+    label: Home page
+    type: file
+    path: site.json
+    format: json
+    fields:
+      - name: name
+        label: Site name
+        type: string
+      - name: headline
+        label: Headline
+        type: text
+      - name: intro
+        label: Intro
+        type: text
+      - name: photo
+        label: Your photo
+        type: image
+        description: "Optional. Shown next to the Now panel on the home page and on the About page."
+      - name: photo_alt
+        label: Photo description
+        type: string
+        description: "Optional. A few words describing the photo, for screen readers."
+      - name: tagline
+        label: Line under your name
+        type: string
+        description: "Optional. Shown next to your photo on the home page."
+      - name: description
+        label: Short description for search engines and link previews
+        type: text
+      - name: now_updated
+        label: Now panel last updated
+        type: date
+        options:
+          format: yyyy-MM-dd
+      - name: now
+        label: Now panel
+        type: object
+        list: true
+        fields:
+          - name: label
+            label: Label
+            type: string
+          - name: text
+            label: Text
+            type: string
+      - name: cards
+        label: Cards on the home page
+        type: object
+        list: true
+        fields:
+          - name: label
+            label: Small label
+            type: string
+          - name: title
+            label: Title
+            type: string
+          - name: text
+            label: Text
+            type: text
+          - name: tags
+            label: Tags
+            type: string
+            list: true
+          - name: steps
+            label: Steps
+            type: string
+            list: true
+          - name: current
+            label: Current step (a number, for cards with steps)
+            type: number
+      - name: tiles
+        label: Tiles at the bottom of the home page
+        type: object
+        list: true
+        fields:
+          - name: name
+            label: Name
+            type: string
+          - name: desc
+            label: Description
+            type: string
+          - name: href
+            label: Link (for example books.html)
+            type: string
+      - name: links
+        label: Footer links
+        type: object
+        list: true
+        fields:
+          - name: label
+            label: Label
+            type: string
+          - name: url
+            label: Address
+            type: string
+
+  - name: books
+    label: Books
+    type: file
+    path: content/books.json
+    format: json
+    list: true
+    fields:
+      - name: title
+        label: Title
+        type: string
+        required: true
+      - name: author
+        label: Author
+        type: string
+      - name: status
+        label: Status
+        type: select
+        options:
+          values:
+            - name: reading
+              label: Reading
+            - name: finished
+              label: Finished
+            - name: want
+              label: Want to read
+      - name: cover
+        label: Photo of the front cover
+        type: image
+        description: "Upload a photo of the front of the book. Portrait photos work best."
+      - name: takeaway
+        label: What I took from it
+        type: text
+      - name: finished
+        label: Date finished
+        type: date
+        default: ""
+        options:
+          format: yyyy-MM-dd
+      - name: note
+        label: Linked note
+        type: string
+        description: "Optional. The file name of a note about this book, without .md"
+      - name: progress
+        label: Reading progress (for the book you are reading)
+        type: object
+        fields:
+          - name: current
+            label: Current chapter
+            type: number
+          - name: total
+            label: Total chapters
+            type: number
+          - name: label
+            label: Chapter title
+            type: string
+      - name: color
+        label: Cover colour (used when there is no photo)
+        type: string
+        description: "Optional. A colour such as #2F4A44"
+
+  - name: notes
+    label: Notes
+    type: collection
+    path: content/notes
+    format: yaml-frontmatter
+    filename: "{primary}.md"
+    fields:
+      - name: title
+        label: Title
+        type: string
+        required: true
+      - name: stage
+        label: Growth stage
+        type: select
+        options:
+          values:
+            - name: seedling
+              label: Seedling (rough first thoughts)
+            - name: budding
+              label: Budding (taking shape)
+            - name: evergreen
+              label: Evergreen (kept up to date)
+      - name: tags
+        label: Tags
+        type: string
+        list: true
+      - name: date
+        label: Last tended
+        type: date
+        options:
+          format: yyyy-MM-dd
+      - name: summary
+        label: One-sentence summary
+        type: text
+      - name: body
+        label: Note
+        type: rich-text
+
+  - name: projects
+    label: Projects
+    type: file
+    path: content/projects.json
+    format: json
+    list: true
+    fields:
+      - name: title
+        label: Title
+        type: string
+        required: true
+      - name: description
+        label: Description
+        type: text
+      - name: tags
+        label: Tags
+        type: string
+        list: true
+      - name: url
+        label: Link
+        type: string
+
+  - name: about
+    label: About page
+    type: file
+    path: content/about.md
+    format: yaml-frontmatter
+    fields:
+      - name: body
+        label: About you
+        type: rich-text
